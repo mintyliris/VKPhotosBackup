@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VK Photos Backup</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .progress {
+            display: none;
+            margin-top: 20px;
+        }
+        #log-container {
+            display: none;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">VK Photos Backup</h1>
+        
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-info">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Начать загрузку фотографий</h5>
+                <p class="card-text">Для начала работы необходимо:</p>
+                <ol>
+                    <li>Указать ID пользователя VK</li>
+                    <li>Предоставить токен Яндекс.Диска</li>
+                    <li>(Опционально) Указать папку на Яндекс.Диске</li>
+                </ol>
+                
+                <form id="uploadForm" action="{{ url_for('upload') }}" method="post">
+                    <div class="mb-3">
+                        <label for="user_id" class="form-label">ID пользователя VK</label>
+                        <input type="text" class="form-control" id="user_id" name="user_id" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="yandex_token" class="form-label">Токен Яндекс.Диска</label>
+                        <input type="text" class="form-control" id="yandex_token" name="yandex_token" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="folder_path" class="form-label">Папка на Яндекс.Диске (необязательно)</label>
+                        <input type="text" class="form-control" id="folder_path" name="folder_path" placeholder="Например: VK_Photos">
+                        <div class="form-text">Если папка не указана, фотографии будут загружены в корневую директорию</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Загрузить фотографии</button>
+                </form>
+
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                </div>
+
+                <div id="log-container">
+                    <h6>Лог загрузки:</h6>
+                    <pre id="log-content"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const progressBar = document.querySelector('.progress');
+            const progressBarInner = document.querySelector('.progress-bar');
+            const logContainer = document.getElementById('log-container');
+            const logContent = document.getElementById('log-content');
+            
+            // Сброс состояния
+            progressBar.style.display = 'block';
+            logContainer.style.display = 'block';
+            logContent.textContent = 'Начинаем загрузку...\n';
+            progressBarInner.style.width = '0%';
+            progressBarInner.classList.remove('bg-success', 'bg-danger');
+            
+            const formData = new FormData(this);
+            
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Добавляем логи в контейнер
+                if (data.log) {
+                    logContent.textContent += data.log.join('\n');
+                }
+                
+                // Обновляем прогресс-бар
+                progressBarInner.style.width = '100%';
+                progressBarInner.classList.add('bg-success');
+                
+                // Показываем сообщение об успехе
+                if (data.message) {
+                    logContent.textContent += `\n${data.message}`;
+                }
+            })
+            .catch(error => {
+                logContent.textContent += `\nОшибка: ${error.message}`;
+                progressBarInner.style.width = '0%';
+                progressBarInner.classList.add('bg-danger');
+            });
+        });
+    </script>
+</body>
+</html> 
